@@ -18,9 +18,6 @@ const (
 	TW_PATH_USER_TIMELINE      = "/1.1/statuses/user_timeline.json"
 )
 
-const (
-	max_id_query = `match (u:User {screen_name:{0})-[:POSTS]->(t:Tweet) return max(t.id) AS max_id`
-)
 
 type Engine struct {
 	cnf    *Config
@@ -98,6 +95,21 @@ func (p *Engine) getTweets(screenName string, maxID uint64) (twittergo.Timeline,
 	return results, nil
 }
 
+func (p *Engine) tweetsImport(db *sql.DB, tweets twittergo.Timeline) error {	
+	stmt, err := db.Prepare(CYPHER_TWEETS_IMPORT)
+	if err != nil {
+		return  errors.Annotate(err, "db prepare")
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(tweets)
+	if err != nil {
+		return  errors.Annotate(err, "db query")
+	}
+	defer rows.Close()
+	return nil
+}
+	
 func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
 	db, err := sql.Open("neo4j-cypher", p.cnf.neoHost)
 	if err != nil {
@@ -105,7 +117,7 @@ func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
 	}
 	defer db.Close()
 
-	stmt, err := db.Prepare(max_id_query)
+	stmt, err := db.Prepare(CYPHER_TWEETS_MAX_ID)
 	if err != nil {
 		return 0, errors.Annotate(err, "db prepare")
 	}
@@ -128,6 +140,12 @@ func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
 
 func (p *Engine) AddTweets() error {
 	p.createClient()
+	
+	db, err := sql.Open("neo4j-cypher", p.cnf.neoHost)
+	if err != nil {
+		return errors.Annotate(err, "open database")
+	}
+	defer db.Close()
 
 	screenName, err := p.cnf.ScreenName()
 	if err != nil {
@@ -140,6 +158,26 @@ func (p *Engine) AddTweets() error {
 	}
 
 	tweets, err := p.getTweets(screenName, maxID)
+	if err != nil {
+		return errors.Annotate(err, "get tweets")
+	}
+
+	for len(tweets) >0{
+		if err = p.tweetsImport(db, tweets); err != nil {
+			return errors.Annotate(err, "import tweets")
+		}
+
+		for _, tw := range tweets {
+			if tw.Id() > maxID {
+				maxID = tw.Id()
+			}
+		}
+
+		tweets, err = p.getTweets(screenName, maxID)
+		if err != nil {
+			return errors.Annotate(err, "get tweets")
+		}
+	}
 
 	return nil
 }
