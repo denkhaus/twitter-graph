@@ -1,9 +1,15 @@
 package main
 
 const (
-	CYPHER_TWEETS_MAX_ID = `match (u:User {screen_name:{0})-[:POSTS]->(t:Tweet) return max(t.id) AS max_id`
+	CYPHER_TWEETS_MAX_ID = `
+		MATCH 
+			(u:User {screen_name:{screen_name}})-[:POSTS]->(t:Tweet)
+		RETURN 
+			max(t.id) AS max_id
+		`
+
 	CYPHER_TWEETS_IMPORT = `
-		UNWIND {0} AS t
+		UNWIND {tweets} AS t
 	    WITH t
 	    ORDER BY t.id
 	    WITH t,
@@ -11,17 +17,20 @@ const (
 	         t.user AS u,
 	         t.retweeted_status AS retweet
 	    MERGE (tweet:Tweet {id:t.id})
-	    SET tweet.id_str = t.id_str, 
-	        tweet.text = t.text,
+	    SET tweet.id_str = t.id_str, 	        
 	        tweet.created_at = t.created_at,
-	        tweet.favorites = t.favorite_count
+	        tweet.favorites = t.favorite_count,
+			tweet.retweets = t.retweet_count
 	    MERGE (user:User {screen_name:u.screen_name})
 	    SET user.name = u.name,
 	        user.location = u.location,
 	        user.followers = u.followers_count,
 	        user.following = u.friends_count,
-	        user.statuses = u.statusus_count,
-	        user.profile_image_url = u.profile_image_url
+	        user.statuses = u.statuses_count,
+			user.created_at = u.created_at,
+			user.favourites = u.favourites_count,
+			user.listed = u.listed_count,
+	        user.profile_image_url = u.profile_image_url		
 	    MERGE (user)-[:POSTS]->(tweet)
 	    MERGE (source:Source {name:REPLACE(SPLIT(t.source, ">")[1], "</a", "")})
 	    MERGE (tweet)-[:USING]->(source)
@@ -45,6 +54,6 @@ const (
 	    FOREACH (retweet_id IN [x IN [retweet.id] WHERE x IS NOT NULL] |
 	        MERGE (retweet_tweet:Tweet {id:retweet_id})
 	        MERGE (tweet)-[:RETWEETS]->(retweet_tweet)
-	    )	
-	`
+	    )
+		`
 )

@@ -53,24 +53,16 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 		return nil, errors.New("twitter user secret is not defined")
 	}
 
+	cnf.neoUsername = ctx.GlobalString("user")
+	cnf.neoPassword = ctx.GlobalString("password")
 	return cnf, nil
 }
 
 func (p *Config) ScreenName() (string, error) {
 	p.screenName = p.ctx.GlobalString("screenname")
 	if p.screenName == "" {
-		return "", errors.New("twitter user secret is not defined")
+		return "", errors.New("twitter screen name is not defined")
 	}
 
 	return p.screenName, nil
-}
-
-func (p *Config) NeoUsername() string {
-	p.neoUsername = p.ctx.GlobalString("user")
-	return p.neoUsername
-}
-
-func (p *Config) NeoPassword() string {
-	p.neoPassword = p.ctx.GlobalString("password")
-	return p.neoPassword
 }

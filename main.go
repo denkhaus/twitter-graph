@@ -18,7 +18,6 @@ func init() {
 }
 
 func main() {
-
 	app := cli.NewApp()
 	app.Name = "twitter-graph"
 	app.Usage = "A docker log pump to splunk"
@@ -27,7 +26,7 @@ func main() {
 			Name:   "host, d",
 			Usage:  "Neo4j host",
 			EnvVar: "NEO4_HOST",
-			Value:  "localhost",
+			Value:  "http://localhost",
 		},
 		cli.IntFlag{
 			Name:   "port, P",
@@ -46,27 +45,28 @@ func main() {
 			EnvVar: "NEO4_PASSWORD",
 		},
 		cli.StringFlag{
-			Name:   "consumer-key",
-			Usage:  "Twitter Consumer Key",
-			EnvVar: "TWITTER_CONSUMER_KEY",
+			Name:  "screenname, s",
+			Usage: "Twitter screen name",
 		},
-
-		cli.StringFlag{
-			Name:   "consumer-secret",
-			Usage:  "Twitter Consumer Secret",
-			EnvVar: "TWITTER_CONSUMER_SECRET",
-		},
-
 		cli.StringFlag{
 			Name:   "user-key",
 			Usage:  "Twitter User Key",
 			EnvVar: "TWITTER_USER_KEY",
 		},
-
 		cli.StringFlag{
 			Name:   "user-secret",
 			Usage:  "Twitter User Secret",
 			EnvVar: "TWITTER_USER_SECRET",
+		},
+		cli.StringFlag{
+			Name:   "consumer-key",
+			Usage:  "Twitter Consumer Key",
+			EnvVar: "TWITTER_CONSUMER_KEY",
+		},
+		cli.StringFlag{
+			Name:   "consumer-secret",
+			Usage:  "Twitter Consumer Secret",
+			EnvVar: "TWITTER_CONSUMER_SECRET",
 		},
 	}
 

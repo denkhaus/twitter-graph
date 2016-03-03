@@ -5,18 +5,17 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-"strings"
+
+	"github.com/denkhaus/neoism"
 	"github.com/juju/errors"
 	"github.com/kurrik/oauth1a"
 	"github.com/kurrik/twittergo"
-	"github.com/jmcvetta/neoism"
 )
 
 const (
 	TW_PATH_VERIFY_CREDENTIALS = "/1.1/account/verify_credentials.json"
 	TW_PATH_USER_TIMELINE      = "/1.1/statuses/user_timeline.json"
 )
-
 
 type Engine struct {
 	cnf    *Config
@@ -31,7 +30,11 @@ func NewEngine(cnf *Config) *Engine {
 	return eng
 }
 
-func (p *Engine) createClient() {
+func (p *Engine) ensureTwitterClient() {
+	if p.client != nil {
+		return
+	}
+
 	config := &oauth1a.ClientConfig{
 		ConsumerKey:    p.cnf.twitterConsumerKey,
 		ConsumerSecret: p.cnf.twitterConsumerSecret,
@@ -40,40 +43,31 @@ func (p *Engine) createClient() {
 		p.cnf.twitterUserKey,
 		p.cnf.twitterUserSecret,
 	)
-
 	p.client = twittergo.NewClient(config, user)
 }
 
-func (p *Engine) openDatabase() (*neoism.Database, error){
-	
-	var userInfo string		
-			if p.cnf.neoUsername != ""{
-	userInfo = fmt.Sprintf("%s:%s", p.cnf.neoUsername, p.cnf.neoPassword)
-	
-	if len(strings.Split(userInfo, ":")) != 2{
+func (p *Engine) openNeoDB() (*neoism.Database, error) {
+	logger.Info("open db connection")
+	if p.cnf.neoUsername != "" && p.cnf.neoPassword == "" {
 		return nil, errors.New("invalid neo4j credentials")
-	}  		
-	
 	}
-	
-	
-	db, err := neoism.Connect()
+
+	hostPort := fmt.Sprintf("%s:%d", p.cnf.neoHost, p.cnf.neoPort)
+	db, err := neoism.Connect(hostPort, p.cnf.neoUsername, p.cnf.neoPassword)
 	if err != nil {
-		return errors.Annotate(err, "open database")
+		return nil, errors.Annotate(err, "open database")
 	}
-	defer db.Close()
 
-
+	return db, nil
 }
 
 func (p *Engine) AddUser() error {
-	p.createClient()
+	p.ensureTwitterClient()
 
 	return nil
 }
 
-func (p *Engine) getTweets(screenName string, maxID uint64) (twittergo.Timeline, error) {
-
+func (p *Engine) tweetsGet(screenName string, maxID uint64) (twittergo.Timeline, error) {
 	query := url.Values{}
 	query.Set("count", "100")
 	query.Set("screen_name", screenName)
@@ -111,60 +105,63 @@ func (p *Engine) getTweets(screenName string, maxID uint64) (twittergo.Timeline,
 				logger.Errorf("Problem parsing response: %v\n", err)
 			}
 		}
+
+		if resp.HasRateLimit() {
+			logger.Infof("ratelimit: %v calls available", resp.RateLimitRemaining())
+		}
+		break
 	}
 
 	return results, nil
 }
 
-func (p *Engine) tweetsImport(db *neoism.Database, tweets twittergo.Timeline) error {	
-	stmt, err := db.Prepare(CYPHER_TWEETS_IMPORT)
-	if err != nil {
-		return  errors.Annotate(err, "db prepare")
+func (p *Engine) tweetsImport(db *neoism.Database, tweets twittergo.Timeline) error {
+	logger.Infof("import %d new tweets", len(tweets))
+	cq := neoism.CypherQuery{
+		Statement:  CYPHER_TWEETS_IMPORT,
+		Parameters: neoism.Props{"tweets": tweets},
 	}
-	defer stmt.Close()
 
-	_, err := stmt.Exec(tweets)
-	if err != nil {
-		return  errors.Annotate(err, "db exec")
+	if err := db.Cypher(&cq); err != nil {
+		return errors.Annotate(err, "db query")
 	}
-	
+
 	return nil
 }
-	
-func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
 
-	db, err := p.openDatabase()
+func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
+	db, err := p.openNeoDB()
 	if err != nil {
 		return 0, errors.Annotate(err, "open database")
 	}
 
-	
-	
-	
-var maxID uint64
-cq := neoism.CypherQuery{    
-    Statement: CYPHER_TWEETS_MAX_ID,
-    Parameters: neoism.Props{"screen_name": screenName},    
-	Result: &maxID,
-}
-	
+	var maxIDData []interface{}
+	cq := neoism.CypherQuery{
+		Statement:  CYPHER_TWEETS_MAX_ID,
+		Parameters: neoism.Props{"screen_name": screenName},
+		Result:     &maxIDData,
+	}
+
 	if err := db.Cypher(&cq); err != nil {
 		return 0, errors.Annotate(err, "db query")
 	}
-	
-	return maxID, nil
+
+	mp := maxIDData[0].(map[string]interface{})
+	if mp["max_id"] != nil {
+		return uint64(mp["max_id"].(float64)), nil
+	}
+
+	return 0, nil
 }
 
 func (p *Engine) AddTweets() error {
-	p.createClient()
-	
-	db, err := neoism.Connect(p.cnf.neoHost)
+	logger.Info("add tweets")
+	p.ensureTwitterClient()
+
+	db, err := p.openNeoDB()
 	if err != nil {
-		return 0, errors.Annotate(err, "open database")
+		return errors.Annotate(err, "open database")
 	}
-	
-	
-	defer db.Close()
 
 	screenName, err := p.cnf.ScreenName()
 	if err != nil {
@@ -176,23 +173,18 @@ func (p *Engine) AddTweets() error {
 		return errors.Annotate(err, "tweets get max id")
 	}
 
-	tweets, err := p.getTweets(screenName, maxID)
+	tweets, err := p.tweetsGet(screenName, maxID)
 	if err != nil {
 		return errors.Annotate(err, "get tweets")
 	}
 
-	for len(tweets) >0{
+	for len(tweets) > 0 {
+		maxID = tweets[len(tweets)-1].Id() - 1
 		if err = p.tweetsImport(db, tweets); err != nil {
 			return errors.Annotate(err, "import tweets")
 		}
 
-		for _, tw := range tweets {
-			if tw.Id() > maxID {
-				maxID = tw.Id()
-			}
-		}
-
-		tweets, err = p.getTweets(screenName, maxID)
+		tweets, err = p.tweetsGet(screenName, maxID)
 		if err != nil {
 			return errors.Annotate(err, "get tweets")
 		}
