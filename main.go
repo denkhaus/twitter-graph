@@ -27,9 +27,24 @@ func main() {
 			Name:   "host, d",
 			Usage:  "Neo4j host",
 			EnvVar: "NEO4_HOST",
-			Value:  "http://localhost:7474",
+			Value:  "localhost",
 		},
-
+		cli.IntFlag{
+			Name:   "port, P",
+			Usage:  "Neo4j port",
+			EnvVar: "NEO4_PORT",
+			Value:  7474,
+		},
+		cli.StringFlag{
+			Name:   "user, u",
+			Usage:  "Neo4j username",
+			EnvVar: "NEO4_USERNAME",
+		},
+		cli.StringFlag{
+			Name:   "password, p",
+			Usage:  "Neo4j password",
+			EnvVar: "NEO4_PASSWORD",
+		},
 		cli.StringFlag{
 			Name:   "consumer-key",
 			Usage:  "Twitter Consumer Key",

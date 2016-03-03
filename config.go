@@ -9,6 +9,9 @@ import (
 type Config struct {
 	ctx                   *cli.Context
 	neoHost               string
+	neoPort               int
+	neoUsername           string
+	neoPassword           string
 	twitterConsumerKey    string
 	twitterConsumerSecret string
 	twitterUserKey        string
@@ -24,6 +27,10 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	cnf.neoHost = ctx.GlobalString("host")
 	if cnf.neoHost == "" {
 		return nil, errors.New("neo host is not defined")
+	}
+	cnf.neoPort = ctx.GlobalInt("port")
+	if cnf.neoPort == 0 {
+		return nil, errors.New("neo port is not defined")
 	}
 
 	cnf.twitterConsumerKey = ctx.GlobalString("consumer-key")
@@ -56,4 +63,14 @@ func (p *Config) ScreenName() (string, error) {
 	}
 
 	return p.screenName, nil
+}
+
+func (p *Config) NeoUsername() string {
+	p.neoUsername = p.ctx.GlobalString("user")
+	return p.neoUsername
+}
+
+func (p *Config) NeoPassword() string {
+	p.neoPassword = p.ctx.GlobalString("password")
+	return p.neoPassword
 }

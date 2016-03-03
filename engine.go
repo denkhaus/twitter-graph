@@ -1,16 +1,15 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
-
+"strings"
 	"github.com/juju/errors"
 	"github.com/kurrik/oauth1a"
 	"github.com/kurrik/twittergo"
-	_ "gopkg.in/cq.v1"
+	"github.com/jmcvetta/neoism"
 )
 
 const (
@@ -43,6 +42,28 @@ func (p *Engine) createClient() {
 	)
 
 	p.client = twittergo.NewClient(config, user)
+}
+
+func (p *Engine) openDatabase() (*neoism.Database, error){
+	
+	var userInfo string		
+			if p.cnf.neoUsername != ""{
+	userInfo = fmt.Sprintf("%s:%s", p.cnf.neoUsername, p.cnf.neoPassword)
+	
+	if len(strings.Split(userInfo, ":")) != 2{
+		return nil, errors.New("invalid neo4j credentials")
+	}  		
+	
+	}
+	
+	
+	db, err := neoism.Connect()
+	if err != nil {
+		return errors.Annotate(err, "open database")
+	}
+	defer db.Close()
+
+
 }
 
 func (p *Engine) AddUser() error {
@@ -95,56 +116,54 @@ func (p *Engine) getTweets(screenName string, maxID uint64) (twittergo.Timeline,
 	return results, nil
 }
 
-func (p *Engine) tweetsImport(db *sql.DB, tweets twittergo.Timeline) error {	
+func (p *Engine) tweetsImport(db *neoism.Database, tweets twittergo.Timeline) error {	
 	stmt, err := db.Prepare(CYPHER_TWEETS_IMPORT)
 	if err != nil {
 		return  errors.Annotate(err, "db prepare")
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(tweets)
+	_, err := stmt.Exec(tweets)
 	if err != nil {
-		return  errors.Annotate(err, "db query")
+		return  errors.Annotate(err, "db exec")
 	}
-	defer rows.Close()
+	
 	return nil
 }
 	
 func (p *Engine) tweetsGetMaxID(screenName string) (uint64, error) {
-	db, err := sql.Open("neo4j-cypher", p.cnf.neoHost)
+
+	db, err := p.openDatabase()
 	if err != nil {
 		return 0, errors.Annotate(err, "open database")
 	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(CYPHER_TWEETS_MAX_ID)
-	if err != nil {
-		return 0, errors.Annotate(err, "db prepare")
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(screenName)
-	if err != nil {
+	
+	
+	
+var maxID uint64
+cq := neoism.CypherQuery{    
+    Statement: CYPHER_TWEETS_MAX_ID,
+    Parameters: neoism.Props{"screen_name": screenName},    
+	Result: &maxID,
+}
+	
+	if err := db.Cypher(&cq); err != nil {
 		return 0, errors.Annotate(err, "db query")
 	}
-	defer rows.Close()
-
-	var maxID uint64
-	err = rows.Scan(&maxID)
-	if err != nil {
-		return 0, errors.Annotate(err, "scan query")
-	}
-
+	
 	return maxID, nil
 }
 
 func (p *Engine) AddTweets() error {
 	p.createClient()
 	
-	db, err := sql.Open("neo4j-cypher", p.cnf.neoHost)
+	db, err := neoism.Connect(p.cnf.neoHost)
 	if err != nil {
-		return errors.Annotate(err, "open database")
+		return 0, errors.Annotate(err, "open database")
 	}
+	
+	
 	defer db.Close()
 
 	screenName, err := p.cnf.ScreenName()
