@@ -75,10 +75,26 @@ func main() {
 			Name: "add",
 			Subcommands: []cli.Command{
 				cli.Command{
-					Name: "user",
+					Name: "friends",
 					Action: func(ctx *cli.Context) {
 						exec(ctx, func(eng *Engine) error {
-							return eng.AddUser()
+							return eng.AddFriends()
+						})
+					},
+				},
+				cli.Command{
+					Name: "followers",
+					Action: func(ctx *cli.Context) {
+						exec(ctx, func(eng *Engine) error {
+							return eng.AddFollowers()
+						})
+					},
+				},
+				cli.Command{
+					Name: "mentions",
+					Action: func(ctx *cli.Context) {
+						exec(ctx, func(eng *Engine) error {
+							return eng.AddMentions()
 						})
 					},
 				},

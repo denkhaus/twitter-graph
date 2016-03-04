@@ -14,6 +14,30 @@ const (
 			max(t.id) AS max_id
 		`
 
+	CYPHER_MENTIONS_MAX_ID = `	
+		MATCH
+			(u:User {screen_name:{screen_name}})<-[m:MENTIONS]-(t:Tweet)
+		WHERE
+			m.method="mention_search"
+		RETURN
+			max(t.id) AS max_id
+		`
+
+	CYPHER_FOLLOWERS_IMPORT = `	
+		UNWIND {users} AS u
+        WITH u
+        MERGE (user:User {screen_name:u.screen_name})
+        SET user.name = u.name,
+    		user.location = u.location,
+            user.followers = u.followers_count,
+            user.following = u.friends_count,
+            user.statuses = u.statusus_count,
+            user.url = u.url,
+            user.profile_image_url = u.profile_image_url
+        MERGE (mainUser:User {screen_name:{screen_name}})
+        MERGE (user)-[:FOLLOWS]->(mainUser)	
+		`
+
 	CYPHER_TWEETS_IMPORT = `
 		UNWIND {tweets} AS t
 	    WITH t
@@ -51,7 +75,8 @@ const (
 	    FOREACH (m IN e.user_mentions |
 	      MERGE (mentioned:User {screen_name:m.screen_name})
 	      ON CREATE SET mentioned.name = m.name
-	      MERGE (tweet)-[:MENTIONS]->(mentioned)
+	      MERGE (tweet)-[mts:MENTIONS]->(mentioned)
+          SET mts.method = {mention_type}
 	    )
 	    FOREACH (r IN [r IN [t.in_reply_to_status_id] WHERE r IS NOT NULL] |
 	      MERGE (reply_tweet:Tweet {id:r})		  
