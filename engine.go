@@ -69,7 +69,7 @@ func (p *Engine) AddUser() error {
 
 func (p *Engine) tweetsGet(screenName string, maxID uint64) (twittergo.Timeline, error) {
 	query := url.Values{}
-	query.Set("count", "100")
+	query.Set("count", "200")
 	query.Set("screen_name", screenName)
 
 	var results = twittergo.Timeline{}

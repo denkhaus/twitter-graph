@@ -23,10 +23,10 @@ const (
 	         t.user AS u,
 	         t.retweeted_status AS retweet
 	    MERGE (tweet:Tweet {id:t.id})
-	    SET tweet.id_str = t.id_str, 	        
-	        tweet.created_at = t.created_at,
-	        tweet.favorites = t.favorite_count,
-			tweet.retweets = t.retweet_count
+	    SET tweet.created_at = t.created_at,	        
+			tweet.text = t.text,
+			tweet.favorites = t.favorite_count,
+			tweet.retweets = t.retweet_count			
 	    MERGE (user:User {screen_name:u.screen_name})
 	    SET user.name = u.name,
 	        user.location = u.location,
@@ -54,12 +54,15 @@ const (
 	      MERGE (tweet)-[:MENTIONS]->(mentioned)
 	    )
 	    FOREACH (r IN [r IN [t.in_reply_to_status_id] WHERE r IS NOT NULL] |
-	      MERGE (reply_tweet:Tweet {id:r})
+	      MERGE (reply_tweet:Tweet {id:r})		  
 	      MERGE (tweet)-[:REPLY_TO]->(reply_tweet)
+		  SET tweet.is_reply = true,
+		      reply_tweet.is_replied = true
 	    )
 	    FOREACH (retweet_id IN [x IN [retweet.id] WHERE x IS NOT NULL] |
 	        MERGE (retweet_tweet:Tweet {id:retweet_id})
 	        MERGE (tweet)-[:RETWEETS]->(retweet_tweet)
+			SET tweet.is_retweet = true				
 	    )
 		`
 )
