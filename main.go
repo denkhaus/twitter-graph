@@ -26,7 +26,7 @@ func main() {
 			Name:   "host, d",
 			Usage:  "Neo4j host",
 			EnvVar: "NEO4_HOST",
-			Value:  "http://localhost",
+			Value:  "localhost",
 		},
 		cli.IntFlag{
 			Name:   "port, P",
@@ -108,20 +108,28 @@ func main() {
 				},
 			},
 		},
+		cli.Command{
+			Name: "maintain",
+			Subcommands: []cli.Command{
+				cli.Command{
+					Name: "users",
+					Action: func(ctx *cli.Context) {
+						exec(ctx, func(eng *Engine) error {
+							return eng.CompleteUsers()
+						})
+					},
+				},
+				cli.Command{
+					Name: "graph",
+					Action: func(ctx *cli.Context) {
+						exec(ctx, func(eng *Engine) error {
+							return eng.MaintainGraph()
+						})
+					},
+				},
+			},
+		},
 	}
 
 	app.Run(os.Args)
 }
-
-//logsPump := NewLogsPump(storagePath)
-
-//		closer.Bind(func() {
-//			logsPump.Shutdown()
-//			logger.Info("terminated")
-//		})
-
-//		closer.Checked(func() error {
-//			logger.Info("startup ---------------------------------------------")
-//			logsPump.RegisterAdapter(NewSplunkAdapter, host)
-//			return logsPump.Run()
-//		}, true)

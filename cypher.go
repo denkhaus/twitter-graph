@@ -1,40 +1,124 @@
 package main
 
 const (
-	CYPHER_CONSTRAINT_TWEET   = `CREATE CONSTRAINT ON (t:Tweet) ASSERT t.id IS UNIQUE;`
-	CYPHER_CONSTRAINT_USER    = `CREATE CONSTRAINT ON (u:User) ASSERT u.screen_name IS UNIQUE;`
-	CYPHER_CONSTRAINT_HASHTAG = `CREATE CONSTRAINT ON (h:Hashtag) ASSERT h.name IS UNIQUE;`
-	CYPHER_CONSTRAINT_LINK    = `CREATE CONSTRAINT ON (l:Link) ASSERT l.url IS UNIQUE;`
-	CYPHER_CONSTRAINT_SOURCE  = `CREATE CONSTRAINT ON (s:Source) ASSERT s.name IS UNIQUE;`
+	CYPHER_CONSTRAINT_TWEET    = `CREATE CONSTRAINT ON (t:Tweet) ASSERT t.id IS UNIQUE;`
+	CYPHER_CONSTRAINT_USERNAME = `CREATE CONSTRAINT ON (u:TwitterUser) ASSERT u.screen_name IS UNIQUE;`
+	CYPHER_CONSTRAINT_USERID   = `CREATE CONSTRAINT ON (u:TwitterUser) ASSERT u.id IS UNIQUE;`
+	CYPHER_CONSTRAINT_HASHTAG  = `CREATE CONSTRAINT ON (h:Hashtag) ASSERT h.name IS UNIQUE;`
+	CYPHER_CONSTRAINT_LINK     = `CREATE CONSTRAINT ON (l:Link) ASSERT l.url IS UNIQUE;`
+	CYPHER_CONSTRAINT_SOURCE   = `CREATE CONSTRAINT ON (s:Source) ASSERT s.name IS UNIQUE;`
 
 	CYPHER_TWEETS_MAX_ID = `
 		MATCH 
-			(u:User {screen_name:{screen_name}})-[:POSTS]->(t:Tweet)
+			(u:TwitterUser {screen_name:{screen_name}})-[:POSTS]->(t:Tweet)
 		RETURN 
 			max(t.id) AS max_id
 		`
 
 	CYPHER_MENTIONS_MAX_ID = `	
 		MATCH
-			(u:User {screen_name:{screen_name}})<-[m:MENTIONS]-(t:Tweet)
+			(u:TwitterUser {screen_name:{screen_name}})<-[m:MENTIONS]-(t:Tweet)
 		WHERE
 			m.method="mention_search"
 		RETURN
 			max(t.id) AS max_id
 		`
+	CYPHER_NEED_GRAPH_UPDATE = `
+		MATCH 
+			(a:TwitterUser)		
+		WHERE 
+			EXISTS(a.graph_updated) AND a.following <> 0
+		WITH 
+			a, size((a)-[:FOLLOWS]->()) as following_count
+		WHERE 
+			a.following <> following_count
+		RETURN 
+			a.id as id
+		ORDER BY 
+			a.graph_updated
+		LIMIT 100
+		`
+
+	CYPHER_REMOVE_FOLLOWS_REL = `
+		MATCH (mainUser:TwitterUser {id:{id}})-[rel:FOLLOWS]->()
+		DELETE rel		
+		`
+	CYPHER_MERGE_FOLLOWING_IDS = `		
+		UNWIND {ids} AS id
+        WITH id
+		MATCH (mainUser:TwitterUser {id:{user_id}})
+        MERGE (followedUser:TwitterUser {id:id})		
+		ON CREATE SET 
+			followedUser.followers = 1,
+			followedUser.following = -1,
+			followedUser.graph_updated = 0
+        MERGE (mainUser)-[:FOLLOWS]->(followedUser)		
+		SET mainUser.graph_updated = timestamp()
+		`
+
+	CYPHER_USERS_NEED_COMPLETION = `
+		MATCH (n1:TwitterUser)
+		WHERE NOT EXISTS(n1.created_at)	AND EXISTS(n1.id)	
+		RETURN n1.id as id
+		LIMIT 100
+		`
+
+	CYPHER_USERS_UPDATE_BY_NAME = `	
+		UNWIND {users} AS u
+        WITH u
+        MERGE (user:TwitterUser {screen_name:u.screen_name})
+		ON CREATE SET user.graph_updated = 0
+        SET user.id = u.id_str,
+			user.name = u.name,
+			user.created_at = u.created_at,
+			user.location = u.location,
+            user.followers = u.followers_count,
+            user.following = u.friends_count,
+            user.statuses = u.statuses_count,
+            user.url = u.url,
+            user.profile_image_url = u.profile_image_url,
+			user.last_updated = timestamp()
+		`
+	CYPHER_USERS_UPDATE_BY_ID = `	
+		UNWIND 
+			{users} AS u
+        WITH 
+			u
+        MERGE 
+			(user:TwitterUser {id:u.id_str})
+		ON CREATE SET 
+			user.graph_updated = 0
+        SET 
+			user.screen_name = u.screen_name,
+			user.name = u.name,
+			user.created_at = u.created_at,
+			user.location = u.location,
+            user.followers = u.followers_count,
+            user.following = u.friends_count,
+            user.statuses = u.statuses_count,
+            user.url = u.url,
+            user.profile_image_url = u.profile_image_url,
+			user.last_updated = timestamp()
+		`
 
 	CYPHER_FOLLOWERS_IMPORT = `	
 		UNWIND {users} AS u
         WITH u
-        MERGE (user:User {screen_name:u.screen_name})
-        SET user.name = u.name,
+        MERGE (user:TwitterUser {screen_name:u.screen_name})
+		ON CREATE SET 
+			user.graph_updated = 0
+        SET 
+			user.name = u.name,
+			user.id = u.id_str,
+			user.created_at = u.created_at,
     		user.location = u.location,
             user.followers = u.followers_count,
             user.following = u.friends_count,
-            user.statuses = u.statusus_count,
+            user.statuses = u.statuses_count,
             user.url = u.url,
-            user.profile_image_url = u.profile_image_url
-        MERGE (mainUser:User {screen_name:{screen_name}})
+            user.profile_image_url = u.profile_image_url,
+			user.last_updated = timestamp()
+        MERGE (mainUser:TwitterUser {screen_name:{screen_name}})
         MERGE (user)-[:FOLLOWS]->(mainUser)	
 		`
 

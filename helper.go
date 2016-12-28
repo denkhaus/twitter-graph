@@ -9,6 +9,8 @@ func exec(ctx *cli.Context, fn func(eng *Engine) error) {
 	}
 
 	eng := NewEngine(cnf)
+	defer eng.Close()
+
 	if err := fn(eng); err != nil {
 		logger.Fatalf("exec error:%s", err)
 	}

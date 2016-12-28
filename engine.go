@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"net/url"
+
+	"github.com/ChimeraCoder/anaconda"
 	"github.com/denkhaus/neoism"
 	"github.com/juju/errors"
 	"github.com/kurrik/oauth1a"
@@ -15,11 +18,14 @@ const (
 	TW_PATH_USER_TIMELINE      = "/1.1/statuses/user_timeline.json?%v"
 	TW_PATH_MENTIONS_TIMELINE  = "/1.1/statuses/mentions_timeline.json?%v"
 	TW_PATH_FOLLOWERS_TIMELINE = "/1.1/followers/list.json?%v"
+	TW_PATH_FOLLOWERS_IDS      = "/1.1/followers/ids.json?%v"
+	TW_PATH_USER_LOOKUP        = "/1.1/users/lookup.json?"
 )
 
 type Engine struct {
 	cnf    *Config
 	client *twittergo.Client
+	api    *anaconda.TwitterApi
 }
 
 func NewEngine(cnf *Config) *Engine {
@@ -30,10 +36,25 @@ func NewEngine(cnf *Config) *Engine {
 	return eng
 }
 
+func (p *Engine) Close() {
+	if p.api != nil {
+		p.api.Close()
+		p.api = nil
+	}
+}
+
 func (p *Engine) ensureTwitterClient() {
 	if p.client != nil {
 		return
 	}
+
+	anaconda.SetConsumerKey(p.cnf.twitterConsumerKey)
+	anaconda.SetConsumerSecret(p.cnf.twitterConsumerSecret)
+
+	p.api = anaconda.NewTwitterApi(
+		p.cnf.twitterUserKey,
+		p.cnf.twitterUserSecret,
+	)
 
 	config := &oauth1a.ClientConfig{
 		ConsumerKey:    p.cnf.twitterConsumerKey,
@@ -52,8 +73,18 @@ func (p *Engine) openNeoDB() (*neoism.Database, error) {
 		return nil, errors.New("invalid neo4j credentials")
 	}
 
-	hostPort := fmt.Sprintf("%s:%d", p.cnf.neoHost, p.cnf.neoPort)
-	db, err := neoism.Connect(hostPort, p.cnf.neoUsername, p.cnf.neoPassword)
+	u := url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%d", p.cnf.neoHost, p.cnf.neoPort),
+	}
+
+	if p.cnf.neoUsername != "" {
+		u.User = url.UserPassword(p.cnf.neoUsername, p.cnf.neoPassword)
+	}
+
+	logger.Debug("neo4j connection string:", u.String())
+
+	db, err := neoism.Connect(u.String())
 	if err != nil {
 		return nil, errors.Annotate(err, "open database")
 	}
@@ -77,7 +108,8 @@ func (p *Engine) initDatabase(db *neoism.Database) error {
 
 	cyphers := []string{
 		CYPHER_CONSTRAINT_TWEET,
-		CYPHER_CONSTRAINT_USER,
+		CYPHER_CONSTRAINT_USERNAME,
+		CYPHER_CONSTRAINT_USERID,
 		CYPHER_CONSTRAINT_HASHTAG,
 		CYPHER_CONSTRAINT_LINK,
 		CYPHER_CONSTRAINT_SOURCE,
