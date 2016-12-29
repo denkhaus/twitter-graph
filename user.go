@@ -4,7 +4,7 @@ import (
 	//	"github.com/davecgh/go-spew/spew"
 	"time"
 
-	"github.com/denkhaus/neoism"
+	"github.com/jmcvetta/neoism"
 	"github.com/juju/errors"
 )
 
@@ -17,21 +17,23 @@ func (p *Engine) completeUsers(db *neoism.Database) error {
 
 	ids := res.FilterResultsBy("id").ToInt64Slice()
 
-	if len(ids) > 0 {
-		logger.Infof("%d user ids need completion -> fetch", len(ids))
-		twUsers, err := p.api.GetUsersLookupByIds(ids, nil)
-		if err != nil {
-			return errors.Annotate(err, "lookup users by ids")
-		}
+	if len(ids) == 0 {
+		return nil
+	}
 
-		props := neoism.Props{
-			"users": twUsers,
-		}
+	logger.Infof("%d user ids need completion -> fetch", len(ids))
+	twUsers, err := p.api.GetUsersLookupByIds(ids, nil)
+	if err != nil {
+		return errors.Annotate(err, "lookup users by ids")
+	}
 
-		logger.Infof("got data for %d users -> apply", len(twUsers))
-		if _, err := p.execQuery(db, CYPHER_USERS_UPDATE_BY_ID, props); err != nil {
-			return errors.Annotate(err, "users update by id")
-		}
+	props := neoism.Props{
+		"users": twUsers,
+	}
+
+	logger.Infof("got data for %d users -> apply", len(twUsers))
+	if _, err := p.execQuery(db, CYPHER_USERS_UPDATE_BY_ID, props); err != nil {
+		return errors.Annotate(err, "users update by id")
 	}
 
 	return nil

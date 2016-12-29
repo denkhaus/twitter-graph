@@ -5,7 +5,7 @@ import (
 	//	"github.com/davecgh/go-spew/spew"
 	"strconv"
 
-	"github.com/denkhaus/neoism"
+	"github.com/jmcvetta/neoism"
 	"github.com/juju/errors"
 )
 

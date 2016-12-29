@@ -7,7 +7,7 @@ import (
 	"net/url"
 
 	"github.com/ChimeraCoder/anaconda"
-	"github.com/denkhaus/neoism"
+	"github.com/jmcvetta/neoism"
 	"github.com/juju/errors"
 	"github.com/kurrik/oauth1a"
 	"github.com/kurrik/twittergo"

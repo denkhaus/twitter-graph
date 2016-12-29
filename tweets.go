@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/denkhaus/neoism"
+	"github.com/jmcvetta/neoism"
 	"github.com/juju/errors"
 	"github.com/kurrik/twittergo"
 )
