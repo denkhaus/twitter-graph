@@ -75,14 +75,6 @@ func main() {
 			Name: "add",
 			Subcommands: []cli.Command{
 				cli.Command{
-					Name: "friends",
-					Action: func(ctx *cli.Context) {
-						exec(ctx, func(eng *Engine) error {
-							return eng.AddFriends()
-						})
-					},
-				},
-				cli.Command{
 					Name: "followers",
 					Action: func(ctx *cli.Context) {
 						exec(ctx, func(eng *Engine) error {
@@ -120,10 +112,18 @@ func main() {
 					},
 				},
 				cli.Command{
-					Name: "graph",
+					Name: "following",
 					Action: func(ctx *cli.Context) {
 						exec(ctx, func(eng *Engine) error {
-							return eng.MaintainGraph()
+							return eng.MaintainFollowing()
+						})
+					},
+				},
+				cli.Command{
+					Name: "followers",
+					Action: func(ctx *cli.Context) {
+						exec(ctx, func(eng *Engine) error {
+							return eng.MaintainFollowers()
 						})
 					},
 				},

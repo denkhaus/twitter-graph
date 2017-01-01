@@ -23,11 +23,12 @@ const (
 		RETURN
 			max(t.id) AS max_id
 		`
-	CYPHER_NEED_GRAPH_UPDATE = `
+
+	CYPHER_NEED_GRAPH_UPDATE_FOLLOWING = `
 		MATCH 
 			(a:TwitterUser)		
 		WHERE 
-			EXISTS(a.graph_updated) AND a.following <> 0
+			EXISTS(a.following_upd) AND a.following <> 0
 		WITH 
 			a, size((a)-[:FOLLOWS]->()) as following_count
 		WHERE 
@@ -35,14 +36,36 @@ const (
 		RETURN 
 			a.id as id
 		ORDER BY 
-			a.graph_updated
+			a.following_upd
 		LIMIT 100
 		`
 
-	CYPHER_REMOVE_FOLLOWS_REL = `
-		MATCH (mainUser:TwitterUser {id:{id}})-[rel:FOLLOWS]->()
+	CYPHER_NEED_GRAPH_UPDATE_FOLLOWERS = `
+		MATCH 
+			(a:TwitterUser)		
+		WHERE 
+			EXISTS(a.followers_upd) AND a.followers <> 0
+		WITH 
+			a, size(()-[:FOLLOWS]->(a)) as followers_count
+		WHERE 
+			a.followers <> followers_count
+		RETURN 
+			a.id as id
+		ORDER BY 
+			a.followers_upd
+		LIMIT 100
+		`
+
+	CYPHER_REMOVE_FOLLOWING_REL = `
+		MATCH (TwitterUser {id:{id}})-[rel:FOLLOWS]->()
 		DELETE rel		
 		`
+
+	CYPHER_REMOVE_FOLLOWERS_REL = `
+		MATCH (TwitterUser {id:{id}})<-[rel:FOLLOWS]-()
+		DELETE rel		
+		`
+
 	CYPHER_MERGE_FOLLOWING_IDS = `		
 		UNWIND {ids} AS id
         WITH id
@@ -51,9 +74,24 @@ const (
 		ON CREATE SET 
 			followedUser.followers = 1,
 			followedUser.following = -1,
-			followedUser.graph_updated = 0
+			followedUser.following_upd = 0,
+			followedUser.followers_upd = 0
         MERGE (mainUser)-[:FOLLOWS]->(followedUser)		
-		SET mainUser.graph_updated = timestamp()
+		SET mainUser.following_upd = timestamp()
+		`
+
+	CYPHER_MERGE_FOLLOWERS_IDS = `		
+		UNWIND {ids} AS id
+        WITH id
+		MATCH (mainUser:TwitterUser {id:{user_id}})
+        MERGE (follower:TwitterUser {id:id})		
+		ON CREATE SET 
+			follower.followers = -1,
+			follower.following = 1,
+			follower.following_upd = 0,
+			follower.followers_upd = 0
+        MERGE (follower)-[:FOLLOWS]->(mainUser)		
+		SET mainUser.followers_upd = timestamp()
 		`
 
 	CYPHER_USERS_NEED_COMPLETION = `
@@ -67,8 +105,11 @@ const (
 		UNWIND {users} AS u
         WITH u
         MERGE (user:TwitterUser {screen_name:u.screen_name})
-		ON CREATE SET user.graph_updated = 0
-        SET user.id = u.id_str,
+		ON CREATE SET 
+			user.following_upd = 0,
+			user.followers_upd = 0
+        SET 
+			user.id = u.id_str,
 			user.name = u.name,
 			user.created_at = u.created_at,
 			user.location = u.location,
@@ -87,7 +128,8 @@ const (
         MERGE 
 			(user:TwitterUser {id:u.id_str})
 		ON CREATE SET 
-			user.graph_updated = 0
+			user.following_upd = 0,
+			user.followers_upd = 0
         SET 
 			user.screen_name = u.screen_name,
 			user.name = u.name,
@@ -106,7 +148,8 @@ const (
         WITH u
         MERGE (user:TwitterUser {screen_name:u.screen_name})
 		ON CREATE SET 
-			user.graph_updated = 0
+			user.following_upd = 0,
+			user.followers_upd = 0
         SET 
 			user.name = u.name,
 			user.id = u.id_str,

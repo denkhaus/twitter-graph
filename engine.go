@@ -128,6 +128,21 @@ func (p *Engine) initDatabase(db *neoism.Database) error {
 	return nil
 }
 
+func (p *Engine) execQuery(db *neoism.Database, statmnt string, props neoism.Props) (*CypherResult, error) {
+
+	res := NewCypherResult()
+	cq := neoism.CypherQuery{
+		Statement:  statmnt,
+		Result:     &res.Raw,
+		Parameters: props,
+	}
+
+	if err := db.Cypher(&cq); err != nil {
+		return nil, errors.Annotate(err, "db query")
+	}
+
+	return res, nil
+}
 func (p *Engine) handleRateLimitError(err error) bool {
 	minwait := time.Duration(10) * time.Second
 	if rle, ok := err.(twittergo.RateLimitError); ok {
