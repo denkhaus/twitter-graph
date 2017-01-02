@@ -28,7 +28,7 @@ const (
 		MATCH 
 			(a:TwitterUser)		
 		WHERE 
-			EXISTS(a.following_upd) AND a.following <> 0
+			EXISTS(a.following_upd) AND a.following <> 0  AND NOT a.protected
 		WITH 
 			a, size((a)-[:FOLLOWS]->()) as following_count
 		WHERE 
@@ -44,7 +44,7 @@ const (
 		MATCH 
 			(a:TwitterUser)		
 		WHERE 
-			EXISTS(a.followers_upd) AND a.followers <> 0
+			EXISTS(a.followers_upd) AND a.followers <> 0 AND NOT a.protected
 		WITH 
 			a, size(()-[:FOLLOWS]->(a)) as followers_count
 		WHERE 
@@ -59,6 +59,11 @@ const (
 	CYPHER_REMOVE_FOLLOWING_REL = `
 		MATCH (TwitterUser {id:{id}})-[rel:FOLLOWS]->()
 		DELETE rel		
+		`
+
+	CYPHER_USER_SET_PROTECTED = `
+		MATCH (n1:TwitterUser {id:{id}})
+		SET n1.protected = true
 		`
 
 	CYPHER_REMOVE_FOLLOWERS_REL = `
@@ -111,6 +116,7 @@ const (
         SET 
 			user.id = u.id_str,
 			user.name = u.name,
+			user.protected = u.protected,
 			user.created_at = u.created_at,
 			user.location = u.location,
             user.followers = u.followers_count,
@@ -133,6 +139,7 @@ const (
         SET 
 			user.screen_name = u.screen_name,
 			user.name = u.name,
+			user.protected = u.protected,
 			user.created_at = u.created_at,
 			user.location = u.location,
             user.followers = u.followers_count,

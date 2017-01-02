@@ -59,6 +59,17 @@ func (p *Engine) maintainFollowing(db *neoism.Database) error {
 							time.Sleep(dur)
 							break
 						} else if apiErr.StatusCode > 400 {
+
+							if apiErr.StatusCode == 401 {
+								logger.Infof("mark user #%s as protected", idStr)
+								_, err = p.execQuery(db, CYPHER_USER_SET_PROTECTED, neoism.Props{
+									"id": idStr,
+								})
+								if err != nil {
+									return errors.Annotate(err, "set user protected")
+								}
+							}
+
 							logger.Warnf("received error code %d", apiErr.StatusCode)
 							break
 						}
@@ -155,6 +166,17 @@ func (p *Engine) maintainFollowers(db *neoism.Database) error {
 							time.Sleep(dur)
 							break
 						} else if apiErr.StatusCode > 400 {
+
+							if apiErr.StatusCode == 401 {
+								logger.Infof("mark user #%s as protected", idStr)
+								_, err = p.execQuery(db, CYPHER_USER_SET_PROTECTED, neoism.Props{
+									"id": idStr,
+								})
+								if err != nil {
+									return errors.Annotate(err, "set user protected")
+								}
+							}
+
 							logger.Warnf("received error code %d", apiErr.StatusCode)
 							break
 						}
