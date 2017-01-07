@@ -24,6 +24,19 @@ func (p *Engine) completeUsers(db *neoism.Database) error {
 	logger.Infof("%d user ids need completion -> fetch", len(ids))
 	twUsers, err := p.api.GetUsersLookupByIds(ids, nil)
 	if err != nil {
+		if apiErr, ok := err.(*anaconda.ApiError); ok {
+
+			if apiErr.StatusCode == 404 {
+				logger.Infof("mark user #%s as protected", idStr)
+				_, err = p.execQuery(db, CYPHER_USER_SET_PROTECTED, neoism.Props{
+					"id": idStr,
+				})
+				if err != nil {
+					return errors.Annotate(err, "set user protected")
+				}
+			}
+		}
+
 		return errors.Annotate(err, "lookup users by ids")
 	}
 
